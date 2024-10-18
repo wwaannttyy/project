@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Совпадения{% endblock %}
+
+{% block content %}
+<h2>Ваши совпадения</h2>
+{% if matches %}
+    <div class="profiles-grid">
+        {% for match in matches %}
+        <div class="profile-card">
+            <img src="{{ match.photo or url_for('static', filename='img/default-avatar.jpg') }}" alt="{{ match.name }}">
+            <h3>{{ match.name }}{% if match.age %}, {{ match.age }}{% endif %}</h3>
+            <p>{{ match.bio[:100] }}{% if match.bio|length > 100 %}...{% endif %}</p>
+            <a href="{{ url_for('profile', id=match.id) }}" class="btn">Посмотреть профиль</a>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <p class="no-matches">У вас пока нет совпадений. Продолжайте искать!</p>
+{% endif %}
+{% endblock %}

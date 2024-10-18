@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Главная{% endblock %}
+
+{% block content %}
+<h2>Профили</h2>
+{% if error %}
+    <p class="error">{{ error }}</p>
+{% endif %}
+{% if profiles %}
+    <div class="profiles-grid">
+        {% for profile in profiles %}
+        <div class="profile-card">
+            <img src="{{ profile.photo or url_for('static', filename='img/default-avatar.jpg') }}" alt="{{ profile.name }}">
+            <h3>{{ profile.name }}{% if profile.age %}, {{ profile.age }}{% endif %}</h3>
+            <p>{{ profile.bio[:100] if profile.bio else 'Нет описания' }}{% if profile.bio and profile.bio|length > 100 %}...{% endif %}</p>
+            <a href="{{ url_for('profile', id=profile.id) }}" class="btn">Посмотреть профиль</a>
+            <button class="btn like-btn" data-profile-id="{{ profile.id }}">Лайк</button>
+        </div>
+        {% endfor %}
+    </div>
+    <button id="load-more" class="btn">Загрузить еще</button>
+{% else %}
+    <p>Нет доступных профилей.</p>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const likeButtons = document.querySelectorAll('.like-btn');
+    const loadMoreButton = document.getElementById('load-more');
+    let offset = {{ profiles|length }};
+
+    likeButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const profileId = this.dataset.profileId;
+            sendLike(profileId, this);
+        });
+    });
+
+    loadMoreButton.addEventListener('click', function() {
+        fetch(`/load-more?offset=${offset}`)
+            .then(response => response.json())
+            .then(data => {
+                const profilesGrid = document.querySelector('.profiles-grid');
+                data.profiles.forEach(profile => {
+                    const profileCard = createProfileCard(profile);
+                    profilesGrid.appendChild(profileCard);
+                });
+                offset += data.profiles.length;
+                if (data.profiles.length < 10) {
+                    loadMoreButton.style.display = 'none';
+                }
+            });
+    });
+
+    function sendLike(profileId, button) {
+        fetch('/like', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ profile_id: profileId }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.match) {
+                alert('У вас новое совпадение!');
+            }
+            button.disabled = true;
+            button.textContent = 'Лайк отправлен';
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+        });
+    }
+
+    function createProfileCard(profile) {
+        const card = document.createElement('div');
+        card.className = 'profile-card';
+        card.innerHTML = `
+            <img src="${profile.photo || '/static/img/default-avatar.jpg'}" alt="${profile.name}">
+            <h3>${profile.name}${profile.age ? ', ' + profile.age : ''}</h3>
+            <p>${profile.bio ? (profile.bio.substring(0, 100) + (profile.bio.length > 100 ? '...' : '')) : 'Нет описания'}</p>
+            <a href="/profile?id=${profile.id}" class="btn">Посмотреть профиль</a>
+            <button class="btn like-btn" data-profile-id="${profile.id}">Лайк</button>
+        `;
+        const likeButton = card.querySelector('.like-btn');
+        likeButton.addEventListener('click', function() {
+            sendLike(profile.id, this);
+        });
+        return card;
+    }
+});
+</script>
+{% endblock %}

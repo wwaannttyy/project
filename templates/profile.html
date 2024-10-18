@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}Профиль{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+    <div class="profile-info card">
+        <img src="{{ profile.photo or url_for('static', filename='img/default-avatar.jpg') }}" alt="{{ profile.name }}" class="profile-photo">
+        <h2>{{ profile.name }}{% if profile.age %}, {{ profile.age }}{% endif %}</h2>
+        <p>{{ profile.bio or 'Нет описания' }}</p>
+        {% if is_own_profile %}
+        <button id="edit-profile-btn" class="btn">Редактировать профиль</button>
+        {% endif %}
+    </div>
+
+    <div class="profile-posts">
+        {% if is_own_profile %}
+        <div class="card">
+            <h3>Создать пост</h3>
+            <form id="create-post-form">
+                <textarea name="content" required placeholder="Напишите что-нибудь..."></textarea>
+                <button type="submit" class="btn">Опубликовать</button>
+            </form>
+        </div>
+        {% endif %}
+
+        <div id="posts">
+            {% for post in posts %}
+            <div class="post" data-post-id="{{ post.id }}">
+                <p class="post-content">{{ post.content }}</p>
+                <small class="post-meta">Автор: {{ post.author_name }} | {{ post.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+                <button class="like-btn" data-post-id="{{ post.id }}">
+                    Лайк (<span class="likes-count">{{ post.likes_count }}</span>)
+                </button>
+                <div class="comments">
+                    {% for comment in post.comments %}
+                    <div class="comment">
+                        <p>{{ comment.content }}</p>
+                        <small>Автор: {{ comment.author_name }} | {{ comment.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+                    </div>
+                    {% endfor %}
+                </div>
+                <form class="add-comment-form" data-post-id="{{ post.id }}">
+                    <input type="text" name="content" required placeholder="Добавить комментарий">
+                    <button type="submit" class="btn">Отправить</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{% if is_own_profile %}
+<!-- Модальное окно для редактирования профиля -->
+<div id="edit-profile-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Редактировать профиль</h2>
+        <form id="edit-profile-form" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="name">Имя:</label>
+                <input type="text" id="name" name="name" value="{{ profile.name }}" required>
+            </div>
+            <div class="form-group">
+                <label for="age">Возраст:</label>
+                <input type="number" id="age" name="age" value="{{ profile.age }}" required>
+            </div>
+            <div class="form-group">
+                <label for="bio">О себе:</label>
+                <textarea id="bio" name="bio">{{ profile.bio }}</textarea>
+            </div>
+            <div class="form-group">
+                <label for="photo">Фото:</label>
+                <input type="file" id="photo" name="photo" accept="image/*">
+            </div>
+            <button type="submit" class="btn">Сохранить изменения</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const editBtn = document.getElementById('edit-profile-btn');
+    const modal = document.getElementById('edit-profile-modal');
+    const closeBtn = modal.querySelector('.close');
+    const form = document.getElementById('edit-profile-form');
+
+    editBtn.addEventListener('click', function() {
+        modal.style.display = 'block';
+    });
+
+    closeBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+    });
+
+    window.addEventListener('click', function(event) {
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    });
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(form);
+        fetch('/edit-profile', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Ошибка при обновлении профиля');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Произошла ошибка');
+        });
+    });
+
+    // Создание поста
+    const createPostForm = document.getElementById('create-post-form');
+    createPostForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(createPostForm);
+        fetch('/create_post', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Ошибка при создании поста');
+            }
+        });
+    });
+
+    // Добавление комментария
+    const addCommentForms = document.querySelectorAll('.add-comment-form');
+    addCommentForms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(form);
+            formData.append('post_id', form.dataset.postId);
+            fetch('/add_comment', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Ошибка при добавлении комментария');
+                }
+            });
+        });
+    });
+
+    // Лайки
+    const likeButtons = document.querySelectorAll('.like-btn');
+    likeButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const postId = button.dataset.postId;
+            const formData = new FormData();
+            formData.append('post_id', postId);
+            fetch('/toggle_like', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const likesCount = button.querySelector('.likes-count');
+                    if (data.action === 'added') {
+                        likesCount.textContent = parseInt(likesCount.textContent) + 1;
+                    } else {
+                        likesCount.textContent = parseInt(likesCount.textContent) - 1;
+                    }
+                } else {
+                    alert('Ошибка при обновлении лайка');
+                }
+            });
+        });
+    });
+});
+</script>
+{% endblock %}
